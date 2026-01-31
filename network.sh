@@ -1,6 +1,6 @@
 #!/bin/bash
 # Script för att visa nätverksanvändning på noden (RX/TX)
-# Beräknar per timme, dag, månad och år
+# Visar MB, GB och TB samt uppskattning per timme, dag, månad och år
 
 clear
 echo "🌐 Proxmox Node Network Monitor"
@@ -26,12 +26,20 @@ for IFACE in $INTERFACES; do
     TOTAL_TX=$((TOTAL_TX + TX))
 done
 
-# Omvandla till MB
-RX_MB=$(echo "scale=2; $TOTAL_RX/1024/1024" | bc)
-TX_MB=$(echo "scale=2; $TOTAL_TX/1024/1024" | bc)
+# Funktion för att konvertera bytes till MB, GB, TB
+convert_sizes() {
+    BYTES=$1
+    MB=$(echo "scale=2; $BYTES/1024/1024" | bc)
+    GB=$(echo "scale=2; $BYTES/1024/1024/1024" | bc)
+    TB=$(echo "scale=2; $BYTES/1024/1024/1024/1024" | bc)
+    echo "$MB MB | $GB GB | $TB TB"
+}
 
-echo "📥 Total mottagen data: $RX_MB MB"
-echo "📤 Total skickad data:  $TX_MB MB"
+RX_STR=$(convert_sizes $TOTAL_RX)
+TX_STR=$(convert_sizes $TOTAL_TX)
+
+echo "📥 Total mottagen data: $RX_STR"
+echo "📤 Total skickad data:  $TX_STR"
 
 # Beräkna per månad/år med antagande: noden kör hela tiden
 HOURS_PER_DAY=24
@@ -39,15 +47,12 @@ DAYS_PER_MONTH=30
 DAYS_PER_YEAR=365
 
 # Snabb uppskattning: data sedan senaste reboot
-# Hämta uptime
 UPTIME_SEC=$(cut -d. -f1 /proc/uptime)
 UPTIME_HOURS=$(echo "scale=2; $UPTIME_SEC/3600" | bc)
 
-# Data per timme
-RX_PER_HOUR=$(echo "scale=2; $RX_MB/$UPTIME_HOURS" | bc)
-TX_PER_HOUR=$(echo "scale=2; $TX_MB/$UPTIME_HOURS" | bc)
+RX_PER_HOUR=$(echo "scale=2; $TOTAL_RX/$UPTIME_HOURS" | bc)
+TX_PER_HOUR=$(echo "scale=2; $TOTAL_TX/$UPTIME_HOURS" | bc)
 
-# Per dag/månad/år
 RX_PER_DAY=$(echo "scale=2; $RX_PER_HOUR*$HOURS_PER_DAY" | bc)
 TX_PER_DAY=$(echo "scale=2; $TX_PER_HOUR*$HOURS_PER_DAY" | bc)
 
@@ -57,10 +62,11 @@ TX_PER_MONTH=$(echo "scale=2; $TX_PER_DAY*$DAYS_PER_MONTH" | bc)
 RX_PER_YEAR=$(echo "scale=2; $RX_PER_DAY*$DAYS_PER_YEAR" | bc)
 TX_PER_YEAR=$(echo "scale=2; $TX_PER_DAY*$DAYS_PER_YEAR" | bc)
 
+# Konvertera även uppskattad trafik till MB|GB|TB
 echo "==============================="
 echo "📊 Uppskattad nätverkstrafik:"
-echo "Per timme:  📥 $RX_PER_HOUR MB | 📤 $TX_PER_HOUR MB"
-echo "Per dag:     📥 $RX_PER_DAY MB | 📤 $TX_PER_DAY MB"
-echo "Per månad:   📥 $RX_PER_MONTH MB | 📤 $TX_PER_MONTH MB"
-echo "Per år:      📥 $RX_PER_YEAR MB | 📤 $TX_PER_YEAR MB"
+echo "Per timme:  📥 $(convert_sizes $RX_PER_HOUR) | 📤 $(convert_sizes $TX_PER_HOUR)"
+echo "Per dag:     📥 $(convert_sizes $RX_PER_DAY) | 📤 $(convert_sizes $TX_PER_DAY)"
+echo "Per månad:   📥 $(convert_sizes $RX_PER_MONTH) | 📤 $(convert_sizes $TX_PER_MONTH)"
+echo "Per år:      📥 $(convert_sizes $RX_PER_YEAR) | 📤 $(convert_sizes $TX_PER_YEAR)"
 echo "==============================="
